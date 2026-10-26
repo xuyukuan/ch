@@ -277,6 +277,33 @@ For persistent configuration, create `~/.ch/config.json` to override default set
 
 For a complete list of all configuration options and their defaults, see [internal/config/config.go](./internal/config/config.go). Environment variables take precedence over the config file for default platform and model, while `~/.ch/config.json` provides a convenient way to customize Ch without setting environment variables for each session.
 
+### Custom Platforms
+
+`platforms` defines OpenAI-compatible platforms beyond the built-ins. Entries are merged by name, and an entry replaces the built-in definition of the same name, so restate `base_url`, `env_name`, and `models` together when overriding one.
+
+```json
+{
+  "current_platform": "mygw",
+  "current_model": "my-model",
+  "platforms": {
+    "mygw": {
+      "name": "mygw",
+      "base_url": "https://gateway.example.com/v1",
+      "env_name": "MYGW_API_KEY",
+      "headers": { "x-opencode-session": "ch-main" },
+      "models": {
+        "url": "https://gateway.example.com/v1/models",
+        "json_name_path": "data.id"
+      }
+    }
+  }
+}
+```
+
+- `env_name` names the environment variable holding the API key; keys are never read from the config file.
+- `headers` are sent with every chat request (streamed or not) and with model listing, overriding same-named headers Ch sets itself.
+- `models.url` must be https, except for the `ollama` platform, and only feeds the model picker; a platform without it still works when `-m` is given.
+
 ### Local & Open-Source Setup
 
 Ch supports local models via [Ollama](https://ollama.com/), allowing you to run it without relying on third-party services. This provides a completely private, open-source, and offline-capable environment.

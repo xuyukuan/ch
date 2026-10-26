@@ -104,6 +104,7 @@ func (m *Manager) Initialize() error {
 	}
 	m.config.CurrentBaseURL = baseURL
 	clientConfig.BaseURL = baseURL
+	clientConfig = withPlatformHeaders(clientConfig, platform.Headers)
 	m.client = openai.NewClientWithConfig(clientConfig)
 
 	return nil
@@ -970,6 +971,7 @@ func (m *Manager) fetchPlatformModelsWithTime(platform types.Platform) ([]modelW
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	setPlatformHeaders(req, platform.Headers)
 
 	resp, err := httpClient.Do(req) // #nosec G704 -- Request uses the validated built-in model-list URL for the selected provider.
 	if err != nil {
