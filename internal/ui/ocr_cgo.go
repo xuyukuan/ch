@@ -28,23 +28,21 @@ func (t *Terminal) extractImageText(setImage func(*gosseract.Client) error) (str
 	client := gosseract.NewClient()
 	defer client.Close()
 
-	// Set language (default to English, but could be made configurable)
-	err := client.SetLanguage("eng")
-	if err != nil {
-		// If English fails, try without setting language
-		client = gosseract.NewClient()
-		defer client.Close()
+	language := normalizedOCRLanguage(t.config.OCRLanguage)
+	if err := client.SetLanguage(language); err != nil {
+		return "", fmt.Errorf("failed to load OCR language %q (see tesseract --list-langs): %w", language, err)
 	}
 
-	// Set image source
-	err = setImage(client)
-	if err != nil {
+	if err := setImage(client); err != nil {
 		return "", fmt.Errorf("failed to set image source: %w", err)
 	}
 
-	// Configure OCR settings for better accuracy
-	if err := client.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?@#$%^&*()_+-={}[]|\\:;\"'<>/~` "); err != nil {
-		return "", fmt.Errorf("failed to configure OCR: %w", err)
+	// The whitelist sharpens latin OCR but drops every character outside it,
+	// so non-latin languages must run without it.
+	if latinOnlyOCR(language) {
+		if err := client.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?@#$%^&*()_+-={}[]|\\:;\"'<>/~` "); err != nil {
+			return "", fmt.Errorf("failed to configure OCR: %w", err)
+		}
 	}
 
 	// Extract text

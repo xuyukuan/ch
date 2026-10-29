@@ -134,6 +134,9 @@ func mergeConfigs(defaultConfig, userConfig *types.Config) *types.Config {
 	if userConfig.ImageMaxTotalSizeMB != 0 {
 		defaultConfig.ImageMaxTotalSizeMB = userConfig.ImageMaxTotalSizeMB
 	}
+	if userConfig.OCRLanguage != "" {
+		defaultConfig.OCRLanguage = userConfig.OCRLanguage
+	}
 	if userConfig.AnswerSearch != "" {
 		defaultConfig.AnswerSearch = userConfig.AnswerSearch
 	}
@@ -294,6 +297,7 @@ func DefaultConfig() *types.Config {
 		ImageControl:        "!i",
 		ImageMaxSizeMB:      types.DefaultImageMaxSizeMB,
 		ImageMaxTotalSizeMB: types.DefaultImageMaxTotalSizeMB,
+		OCRLanguage:         types.DefaultOCRLanguage,
 		AnswerSearch:        "!a",
 		PlatformSwitch:      "!p",
 		AllModels:           "!o",

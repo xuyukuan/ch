@@ -124,6 +124,7 @@ type Config struct {
 	ImageControl        string              `json:"image_control,omitempty"`
 	ImageMaxSizeMB      int                 `json:"image_max_size_mb,omitempty"`
 	ImageMaxTotalSizeMB int                 `json:"image_max_total_size_mb,omitempty"`
+	OCRLanguage         string              `json:"ocr_language,omitempty"` // Tesseract language list, e.g. eng or eng+chi_sim
 	AnswerSearch        string              `json:"answer_search,omitempty"`
 	PlatformSwitch      string              `json:"platform_switch,omitempty"`
 	CodeDump            string              `json:"code_dump,omitempty"`

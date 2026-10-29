@@ -682,3 +682,28 @@ func TestMergeConfigs_CompressDefaultsPreserved(t *testing.T) {
 		t.Errorf("expected default 4000, got %d", merged.CompressMinTokens)
 	}
 }
+
+func TestOCRLanguageConfig(t *testing.T) {
+	t.Setenv("CH_DEFAULT_PLATFORM", "")
+	t.Setenv("CH_DEFAULT_MODEL", "")
+
+	if got := DefaultConfig().OCRLanguage; got != "eng" {
+		t.Fatalf("unexpected default OCR language: %q", got)
+	}
+
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
+	chDir := filepath.Join(tempHome, ".ch")
+	if err := os.MkdirAll(chDir, 0755); err != nil {
+		t.Fatalf("failed to create mock .ch dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(chDir, "config.json"), []byte(`{"ocr_language":"eng+chi_sim"}`), 0644); err != nil {
+		t.Fatalf("failed to write mock config.json: %v", err)
+	}
+
+	if got := DefaultConfig().OCRLanguage; got != "eng+chi_sim" {
+		t.Fatalf("ocr_language override ignored: %q", got)
+	}
+}

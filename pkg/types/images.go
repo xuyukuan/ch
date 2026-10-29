@@ -10,6 +10,9 @@ const (
 	MiB                        = 1024 * 1024
 	DefaultImageMaxSizeMB      = 10
 	DefaultImageMaxTotalSizeMB = 40
+
+	// DefaultOCRLanguage is the Tesseract language used when ocr_language is unset.
+	DefaultOCRLanguage = "eng"
 )
 
 // ResolveImageLimits returns byte limits from MiB config values. Zero preserves

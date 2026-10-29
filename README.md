@@ -271,6 +271,7 @@ For persistent configuration, create `~/.ch/config.json` to override default set
 - `image_control` - Interactive command key for managing native images (default: `!i`)
 - `image_max_size_mb` - Maximum size per native image in MiB (default: 10)
 - `image_max_total_size_mb` - Maximum total native image bytes in MiB per session and per request (default: 40). Session storage counts disabled images too; requests count only images being sent
+- `ocr_language` - Tesseract language list for image-to-text extraction (default: `eng`). Use `+` to combine, e.g. `eng+chi_sim`. The language must be installed on the host (`tesseract --list-langs`). The latin character whitelist only applies when every configured language is English, so non-latin scripts are not filtered out
 - `models_dev_enabled` - Enable/disable network lookups to [Models.dev](https://models.dev/) for reasoning-effort and image-input capabilities (default: true). With no available metadata, reasoning values and image capabilities are unverified. Existing cached metadata may still be used when network lookups are disabled
 - `models_dev_refresh_hours` - Cache refresh interval in hours for the Models.dev catalog (default: 24). Set to 168 for weekly refresh
 - `compress_history` - Interactive command key for compressing conversation history (default: `!z`)
