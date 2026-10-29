@@ -179,7 +179,7 @@ func mergeConfigs(defaultConfig, userConfig *types.Config) *types.Config {
 	if boolFieldSet(userConfig, "enable_session_save") || userConfig.DefaultModel != "" || userConfig.CurrentPlatform != "" || userConfig.SystemPrompt != "" {
 		defaultConfig.EnableSessionSave = userConfig.EnableSessionSave
 	}
-	if boolFieldSet(userConfig, "show_thinking") || userConfig.DefaultModel != "" || userConfig.CurrentPlatform != "" || userConfig.SystemPrompt != "" {
+	if boolFieldSet(userConfig, "show_thinking") {
 		defaultConfig.ShowThinking = userConfig.ShowThinking
 	}
 	if boolFieldSet(userConfig, "save_all_sessions") || userConfig.SaveAllSessions {
@@ -325,6 +325,7 @@ func DefaultConfig() *types.Config {
 			"Do not include any text before or after the code block.",
 
 		ReasoningEffortSwitch: "!r",
+		ThinkingSwitch:        "!think",
 		ModelsDevEnabled:      true,
 		ModelsDevRefreshHours: 24,
 

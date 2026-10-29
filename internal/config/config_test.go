@@ -178,9 +178,10 @@ func TestMergeConfigs_EnableSessionSaveAndShowThinking(t *testing.T) {
 		Platforms:         map[string]types.Platform{},
 	}
 	user := &types.Config{
-		CurrentPlatform:   "openai",
-		EnableSessionSave: true,
-		ShowThinking:      false,
+		CurrentPlatform:    "openai",
+		EnableSessionSave:  true,
+		ShowThinking:       false,
+		ExplicitBoolFields: map[string]bool{"show_thinking": true},
 	}
 	merged := mergeConfigs(def, user)
 	if !merged.EnableSessionSave {
@@ -254,6 +255,23 @@ func TestMergeConfigs_EmptyUserConfig(t *testing.T) {
 	}
 	if !merged.EnableSessionSave {
 		t.Error("EnableSessionSave should be preserved")
+	}
+}
+
+// A config that carries platform/model settings but omits show_thinking must
+// not wipe the default; only an explicit show_thinking key may override it.
+func TestMergeConfigs_ShowThinkingDefaultSurvivesPlatformConfig(t *testing.T) {
+	def := &types.Config{
+		ShowThinking: true,
+		Platforms:    map[string]types.Platform{},
+	}
+	user := &types.Config{
+		CurrentPlatform: "dku",
+		DefaultModel:    "qwen3.8-27b-local",
+	}
+	merged := mergeConfigs(def, user)
+	if !merged.ShowThinking {
+		t.Error("ShowThinking should keep the default true when the config omits it")
 	}
 }
 
