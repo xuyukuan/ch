@@ -144,6 +144,7 @@ func (t *Terminal) ShowHelp() {
 	fmt.Printf("  %-18s %s\n", "-m model", "specify model")
 	fmt.Printf("  %-18s %s\n", "-o platform|model", "specify platform and model")
 	fmt.Printf("  %-18s %s\n", "-r effort", "set reasoning effort (low, medium, high, or default to omit)")
+	fmt.Printf("  %-18s %s\n", "-think [mode]", "set model thinking (on, off, or default to omit)")
 	fmt.Printf("  %-18s %s\n", "-l file/url", "load file or scrape URL; images are sent natively with a prompt")
 	fmt.Printf("  %-18s %s\n", "-w query", "web search")
 	fmt.Printf("  %-18s %s\n", "-s url", "scrape URL")
@@ -325,6 +326,7 @@ func (t *Terminal) getCommandList() []string {
 		fmt.Sprintf("%s - switch models", t.config.ModelSwitch),
 		fmt.Sprintf("%s - switch platforms", t.config.PlatformSwitch),
 		fmt.Sprintf("%s [effort] - set reasoning effort", t.config.ReasoningEffortSwitch),
+		fmt.Sprintf("%s [on|off] - set model thinking", t.config.ThinkingSwitch),
 		fmt.Sprintf("%s [on|off] - manage native images (picker toggles selected images)", t.config.ImageControl),
 		fmt.Sprintf("%s - record shell session", t.config.ShellRecord),
 		fmt.Sprintf("%s - shell session (not recorded)", t.config.ShellRecordSilent),

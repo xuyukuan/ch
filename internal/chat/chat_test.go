@@ -2089,3 +2089,68 @@ func TestSummarizeWithRetry_FloorStopsHalving(t *testing.T) {
 		t.Errorf("expected floor 1000, got %d", current)
 	}
 }
+
+// ---- Thinking toggle persistence ----
+
+func TestAddToHistoryCapturesThinking(t *testing.T) {
+	cfg := &types.Config{
+		SystemPrompt:    "S",
+		CurrentPlatform: "openai",
+		CurrentModel:    "gpt-5.4",
+	}
+	state := &types.AppState{
+		Config:      cfg,
+		Messages:    []types.ChatMessage{{Role: "system", Content: cfg.SystemPrompt}},
+		ChatHistory: []types.ChatHistory{{User: cfg.SystemPrompt}},
+	}
+	m := NewManager(state)
+
+	state.Thinking = "off"
+	m.AddToHistory("question", "answer")
+	if state.ChatHistory[1].Thinking != "off" {
+		t.Errorf("expected thinking=off in history, got %q", state.ChatHistory[1].Thinking)
+	}
+
+	m.AddToHistoryWithContext("summary", "answer", "full context")
+	if state.ChatHistory[2].Thinking != "off" {
+		t.Errorf("expected thinking=off in context history, got %q", state.ChatHistory[2].Thinking)
+	}
+}
+
+func TestSaveAndRestoreSessionStateIncludesThinking(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
+	cfg := &types.Config{
+		SystemPrompt:      "S",
+		CurrentPlatform:   "openai",
+		CurrentModel:      "gpt-5.4",
+		EnableSessionSave: true,
+	}
+	state := &types.AppState{
+		Config:      cfg,
+		Messages:    []types.ChatMessage{{Role: "system", Content: cfg.SystemPrompt}},
+		ChatHistory: []types.ChatHistory{{User: cfg.SystemPrompt}},
+		Thinking:    "on",
+	}
+	m := NewManager(state)
+
+	if err := m.SaveSessionState(); err != nil {
+		t.Fatalf("SaveSessionState error: %v", err)
+	}
+
+	loaded, err := m.LoadLatestSessionState()
+	if err != nil {
+		t.Fatalf("LoadLatestSessionState error: %v", err)
+	}
+	if loaded.Thinking != "on" {
+		t.Errorf("expected loaded thinking=on, got %q", loaded.Thinking)
+	}
+
+	state.Thinking = "off"
+	m.RestoreSessionState(loaded)
+	if state.Thinking != "on" {
+		t.Errorf("expected restored thinking=on, got %q", state.Thinking)
+	}
+}

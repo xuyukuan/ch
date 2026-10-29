@@ -63,6 +63,7 @@ func main() {
 		fetchFlag      = flag.Bool("f", false, "Fetch a session into interactive mode (file name, path, or fzf pick)")
 		yesFlag        = flag.Bool("y", false, "Skip interactive fzf prompts (codedump exclude-picker)")
 		reasoningFlag  = flag.String("r", "", "Set reasoning effort (e.g., low, medium, high, or default to omit)")
+		thinkingFlag   = flag.String("think", "", "Set model thinking (on, off, or default to omit chat_template_kwargs)")
 	)
 	flag.StringVar(tokenFlag, "token", "", "Estimate token count in file, or piped stdin if no file is given")
 	flag.StringVar(codedumpFlag, "dump", "", "Generate codedump file (optionally specify directory path)")
@@ -75,6 +76,7 @@ func main() {
 	flag.BoolVar(yesFlag, "yes", false, "Skip interactive fzf prompts (codedump exclude-picker)")
 	flag.BoolVar(versionFlag, "version", false, "Show version and exit")
 	flag.StringVar(reasoningFlag, "reasoning-effort", "", "Set reasoning effort (e.g., low, medium, high, or default to omit)")
+	flag.StringVar(thinkingFlag, "thinking", "", "Set model thinking (on, off, or default to omit chat_template_kwargs)")
 
 	noHistoryFlag := flag.Bool("n", false, "Disable session saving for this run")
 	flag.Bool("no-history", false, "Disable session saving for this run")
@@ -106,12 +108,16 @@ func main() {
 
 	tokenFlagProvided := false
 	reasoningFlagProvided := false
+	thinkingFlagProvided := false
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "t" || f.Name == "token" {
 			tokenFlagProvided = true
 		}
 		if f.Name == "r" || f.Name == "reasoning-effort" {
 			reasoningFlagProvided = true
+		}
+		if f.Name == "think" || f.Name == "thinking" {
+			thinkingFlagProvided = true
 		}
 	})
 
@@ -215,6 +221,7 @@ func main() {
 
 		// Restore reasoning effort from session
 		state.ReasoningEffort = session.ReasoningEffort
+		state.Thinking = session.Thinking
 
 		// Re-initialize platform client with restored state
 		err = platformManager.Initialize()
@@ -547,6 +554,7 @@ func main() {
 
 		// Restore reasoning effort from session (unless overridden by CLI later)
 		state.ReasoningEffort = session.ReasoningEffort
+		state.Thinking = session.Thinking
 
 		// Print session restoration message in red.
 		fmt.Printf("\033[91m%s UTC (%s)\033[0m\n", time.Unix(session.Timestamp, 0).UTC().Format("2006-01-02 15:04:05"), filepath.Base(session.SourceFile))
@@ -616,6 +624,7 @@ func main() {
 
 		// Restore reasoning effort from session (unless overridden by CLI later)
 		state.ReasoningEffort = session.ReasoningEffort
+		state.Thinking = session.Thinking
 
 		// Print session restoration message in red
 		fmt.Printf("\033[91m%s UTC (%s)\033[0m\n", time.Unix(session.Timestamp, 0).UTC().Format("2006-01-02 15:04:05"), filepath.Base(session.SourceFile))
@@ -660,6 +669,22 @@ func main() {
 		state.Config.ReasoningEffort = normalized
 	}
 	platformManager.SetReasoningEffort(state.ReasoningEffort)
+
+	// Apply the thinking state: CLI flag takes precedence over the restored
+	// session and the config default.
+	if thinkingFlagProvided {
+		normalized, ok := platformpkg.NormalizeThinking(*thinkingFlag)
+		if !ok {
+			terminal.PrintError(fmt.Sprintf("unsupported thinking value '%s' (supported: on, off, default)", *thinkingFlag))
+			return
+		}
+		state.Thinking = normalized
+		state.Config.Thinking = normalized
+	}
+	platformManager.SetThinking(state.Thinking)
+	if state.Thinking != "" && !platformManager.ThinkingSupported() {
+		terminal.PrintError("thinking is not supported by platform " + state.Config.CurrentPlatform + " (thinking_transport: none)")
+	}
 
 	// handle web search flag
 	if *webSearchFlag != "" {
@@ -1168,6 +1193,13 @@ func handleSpecialCommandsInternal(input string, chatManager *chat.Manager, plat
 	case strings.HasPrefix(input, config.ReasoningEffortSwitch+" "):
 		arg := strings.TrimSpace(strings.TrimPrefix(input, config.ReasoningEffortSwitch+" "))
 		return handleReasoningEffort(arg, chatManager, platformManager, terminal, state)
+
+	case input == config.ThinkingSwitch:
+		return handleThinking("", platformManager, terminal, state)
+
+	case strings.HasPrefix(input, config.ThinkingSwitch+" "):
+		arg := strings.TrimSpace(strings.TrimPrefix(input, config.ThinkingSwitch+" "))
+		return handleThinking(arg, platformManager, terminal, state)
 
 	case config.ImageControl != "" && (input == config.ImageControl || strings.HasPrefix(input, config.ImageControl+" ")):
 		handled := handleImageControl(strings.TrimSpace(strings.TrimPrefix(input, config.ImageControl)), terminal, state)
@@ -2027,6 +2059,7 @@ func handleShowState(chatManager *chat.Manager, terminal *ui.Terminal, state *ty
 		reasoningDesc := platformpkg.DescribeEffortState(state.ReasoningEffort,
 			platformpkg.ResolveCapability(platformName, model, state.Config))
 		fmt.Printf("%s %s\n", "reasoning:", reasoningDesc)
+		fmt.Printf("%s %s\n", "thinking:", platformpkg.DescribeThinkingState(state.Thinking))
 		fmt.Printf("%s %d\n", "chats:", chatCount)
 		fmt.Printf("%s %d\n", "tokens:", tokenCount)
 	} else {
@@ -2039,6 +2072,7 @@ func handleShowState(chatManager *chat.Manager, terminal *ui.Terminal, state *ty
 		reasoningDesc := platformpkg.DescribeEffortState(state.ReasoningEffort,
 			platformpkg.ResolveCapability(platformName, model, state.Config))
 		fmt.Printf("\033[96m%s\033[0m \033[95m%s\033[0m\n", "reasoning:", reasoningDesc)
+		fmt.Printf("\033[96m%s\033[0m \033[95m%s\033[0m\n", "thinking:", platformpkg.DescribeThinkingState(state.Thinking))
 		fmt.Printf("\033[96m%s\033[0m \033[92m%d\033[0m\n", "chats:", chatCount)
 		fmt.Printf("\033[96m%s\033[0m \033[91m%d\033[0m\n", "tokens:", tokenCount)
 	}
@@ -2295,6 +2329,41 @@ func generateUniqueCodeDumpFilename(currentDir, content string) string {
 // reasoning effort. With an empty arg it opens an fzf picker filtered to
 // the current model's supported values. With a non-empty arg it sets
 // the value directly after validation.
+// handleThinking sets the thinking state (chat_template_kwargs.enable_thinking)
+// for the active session. With no argument it opens an fzf picker; with an
+// argument it validates and applies the value. It changes the runtime setting
+// only and never rewrites config.json.
+func handleThinking(arg string, platformManager *platformpkg.Manager, terminal *ui.Terminal, state *types.AppState) bool {
+	if arg == "" {
+		selected, err := terminal.FzfSelect(platformpkg.ThinkingOptions(), "thinking: ")
+		if err != nil {
+			terminal.PrintError(fmt.Sprintf("error selecting thinking state: %v", err))
+			return true
+		}
+		if selected == "" {
+			return true
+		}
+		arg = selected
+	}
+
+	normalized, ok := platformpkg.NormalizeThinking(arg)
+	if !ok {
+		terminal.PrintError(fmt.Sprintf("unsupported thinking value '%s' (supported: on, off, default)", arg))
+		return true
+	}
+
+	state.Thinking = normalized
+	platformManager.SetThinking(normalized)
+	if !platformManager.ThinkingSupported() {
+		terminal.PrintError("thinking is not supported by platform " + state.Config.CurrentPlatform + " (thinking_transport: none)")
+		return true
+	}
+	if !state.Config.MuteNotifications {
+		terminal.PrintInfo("thinking: " + platformpkg.DescribeThinkingState(normalized))
+	}
+	return true
+}
+
 func handleReasoningEffort(arg string, chatManager *chat.Manager, platformManager *platformpkg.Manager, terminal *ui.Terminal, state *types.AppState) bool {
 	currentModel := chatManager.GetCurrentModel()
 	currentPlatform := chatManager.GetCurrentPlatform()

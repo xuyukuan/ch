@@ -73,6 +73,7 @@ type ChatHistory struct {
 	Model           string   `json:"model"`
 	Context         string   `json:"context,omitempty"`
 	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	Thinking        string   `json:"thinking,omitempty"`
 	ImageIDs        []string `json:"image_ids,omitempty"`
 }
 
@@ -84,8 +85,10 @@ type Platform struct {
 	Models                   PlatformModels    `json:"models"`
 	Headers                  map[string]string `json:"headers"`
 	ModelsDevProvider        string            `json:"models_dev_provider,omitempty"`
-	ReasoningEffortTransport string            `json:"reasoning_effort_transport,omitempty"`
-	ImageInput               *bool             `json:"image_input,omitempty"` // Endpoint override; nil uses built-in transport support.
+	ReasoningEffortTransport string            `json:"reasoning_effort_transport,omitempty"` // root (default), openrouter, none
+	ThinkingTransport        string            `json:"thinking_transport,omitempty"`         // chat_template_kwargs (default), dashscope, anthropic, ollama, none
+	ThinkingBudget           int               `json:"thinking_budget,omitempty"`            // anthropic transport only; 0 uses the default budget
+	ImageInput               *bool             `json:"image_input,omitempty"`                // Endpoint override; nil uses built-in transport support.
 }
 
 // PlatformModels contains model endpoint configuration
@@ -154,6 +157,11 @@ type Config struct {
 	ReasoningEffort       string `json:"reasoning_effort,omitempty"`
 	ReasoningEffortSwitch string `json:"reasoning_effort_switch,omitempty"`
 
+	// Thinking toggle controls. Sent as chat_template_kwargs.enable_thinking
+	// (Qwen-style servers). Empty omits the parameter entirely.
+	Thinking       string `json:"thinking,omitempty"`
+	ThinkingSwitch string `json:"thinking_switch,omitempty"`
+
 	// Compression controls. The interactive command compresses the active
 	// conversation into a summary that replaces the runtime Messages slice
 	// (the full ChatHistory is preserved). CompressMinTokens is the
@@ -176,6 +184,7 @@ type ExportEntry struct {
 	BotResponse     string `json:"bot_response"`
 	Timestamp       int64  `json:"timestamp"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Thinking        string `json:"thinking,omitempty"`
 }
 
 // ChatExport represents the complete JSON export structure
@@ -192,6 +201,7 @@ type SessionFile struct {
 	BaseURL         string              `json:"base_url"`
 	ChatHistory     []ChatHistory       `json:"messages"`
 	ReasoningEffort string              `json:"reasoning_effort,omitempty"`
+	Thinking        string              `json:"thinking,omitempty"`
 	Compressions    []CompressionRecord `json:"compressions,omitempty"`
 	Images          []ImageAttachment   `json:"images,omitempty"`
 	ImagesOff       bool                `json:"images_off,omitempty"`
@@ -211,6 +221,7 @@ type AppState struct {
 	SessionStartTime     int64 // Tracks when the current session started for consistent filename
 	SessionFilePath      string
 	ReasoningEffort      string // Active reasoning effort for the current session; "" = omit
+	Thinking             string // Active thinking state for the current session; "" = provider default
 	Compressions         []CompressionRecord
 	Images               []ImageAttachment
 	ImagesOff            bool

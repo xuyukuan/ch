@@ -1415,3 +1415,54 @@ func TestCompressHistoryNoPlatformManager(t *testing.T) {
 		t.Errorf("expected 'platform manager not initialized', got %q", err.Error())
 	}
 }
+
+// TestThinkingFlagRegistered verifies -think and --thinking are registered.
+func TestThinkingFlagRegistered(t *testing.T) {
+	for _, flagArg := range []string{"-think", "--thinking"} {
+		out := runWithTempHome(t, testBinPath, flagArg)
+		if strings.Contains(out, "flag provided but not defined") {
+			t.Fatalf("%s should be registered, got:\n%s", flagArg, out)
+		}
+	}
+}
+
+// TestThinkingFlagReachesPlatformInit verifies -think with a prompt is consumed
+// and the prompt reaches platform initialization.
+func TestThinkingFlagReachesPlatformInit(t *testing.T) {
+	out := runWithTempHome(t, testBinPath, "-think", "off", "test prompt")
+	if strings.Contains(out, "flag provided but not defined") {
+		t.Fatalf("-think should be registered, got:\n%s", out)
+	}
+	if !strings.Contains(out, "OPENAI_API_KEY") {
+		t.Fatalf("-think with prompt should reach platform init, got:\n%s", out)
+	}
+}
+
+// TestStateOutputIncludesThinking verifies that >state includes a thinking line.
+func TestStateOutputIncludesThinking(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
+	state := &types.AppState{
+		Config: &types.Config{
+			CurrentPlatform: "openai",
+			CurrentModel:    "gpt-5.4-mini",
+			SystemPrompt:    "S",
+			IsPipedOutput:   true,
+		},
+		Messages:    []types.ChatMessage{{Role: "system", Content: "S"}},
+		ChatHistory: []types.ChatHistory{{User: "S"}},
+		Thinking:    "off",
+	}
+	chatManager := chat.NewManager(state)
+	terminal := ui.NewTerminal(state.Config)
+
+	out := captureStdout(t, func() {
+		_ = handleShowState(chatManager, terminal, state, true)
+	})
+
+	if !strings.Contains(out, "thinking: off") {
+		t.Fatalf("expected state output to include thinking line, got:\n%s", out)
+	}
+}

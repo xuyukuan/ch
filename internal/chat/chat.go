@@ -163,6 +163,7 @@ func (m *Manager) AddToHistory(user, bot string) {
 		Platform:        m.state.Config.CurrentPlatform,
 		Model:           m.state.Config.CurrentModel,
 		ReasoningEffort: m.state.ReasoningEffort,
+		Thinking:        m.state.Thinking,
 	})
 }
 
@@ -177,6 +178,7 @@ func (m *Manager) AddToHistoryWithContext(user, bot, context string) {
 		Model:           m.state.Config.CurrentModel,
 		Context:         context,
 		ReasoningEffort: m.state.ReasoningEffort,
+		Thinking:        m.state.Thinking,
 	})
 }
 
@@ -250,6 +252,7 @@ func (m *Manager) ExportFullHistory() (string, error) {
 				BotResponse:     entry.Bot,
 				Timestamp:       entry.Time,
 				ReasoningEffort: entry.ReasoningEffort,
+				Thinking:        entry.Thinking,
 			})
 		}
 	}
@@ -327,6 +330,7 @@ func (m *Manager) SaveSessionState() error {
 		BaseURL:         m.state.Config.CurrentBaseURL,
 		ChatHistory:     m.state.ChatHistory,
 		ReasoningEffort: m.state.ReasoningEffort,
+		Thinking:        m.state.Thinking,
 		Compressions:    m.state.Compressions,
 		Images:          m.state.Images,
 		ImagesOff:       m.state.ImagesOff,
@@ -480,6 +484,7 @@ func (m *Manager) sessionSaveFingerprint() string {
 		BaseURL:         m.state.Config.CurrentBaseURL,
 		ChatHistory:     m.state.ChatHistory,
 		ReasoningEffort: m.state.ReasoningEffort,
+		Thinking:        m.state.Thinking,
 		Compressions:    m.state.Compressions,
 		Images:          m.state.Images,
 		ImagesOff:       m.state.ImagesOff,
@@ -617,6 +622,7 @@ func (m *Manager) RestoreSessionState(session *types.SessionFile) {
 	m.state.ChatHistory = session.ChatHistory
 	m.state.SessionFilePath = session.SourceFile
 	m.state.ReasoningEffort = session.ReasoningEffort
+	m.state.Thinking = session.Thinking
 	m.state.Compressions = session.Compressions
 	m.state.Images = session.Images
 	m.state.ImagesOff = session.ImagesOff
@@ -1706,6 +1712,9 @@ func (m *Manager) ExportChatInteractive(terminal *ui.Terminal, targetFile string
 		header := fmt.Sprintf("Entry %d - %s - %s/%s", i+1, timestamp, entry.Platform, entry.Model)
 		if entry.ReasoningEffort != "" {
 			header += fmt.Sprintf(" [effort: %s]", entry.ReasoningEffort)
+		}
+		if entry.Thinking != "" {
+			header += fmt.Sprintf(" [thinking: %s]", entry.Thinking)
 		}
 		contentBuilder.WriteString(header + "\n\n")
 

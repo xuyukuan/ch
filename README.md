@@ -266,6 +266,8 @@ For persistent configuration, create `~/.ch/config.json` to override default set
 - `ai_name_prompt` - Instruction sent to the model when generating filename suggestions. Use `{count}` as a placeholder for `ai_name_count`. The default asks for output as a single fenced `text` code block.
 - `reasoning_effort` - Default reasoning effort sent as root-level `reasoning_effort` in chat-completions requests (default: empty, which omits the parameter and preserves the provider default). Supported values are model-specific and discovered from [Models.dev](https://models.dev/) metadata. Example: `"high"`
 - `reasoning_effort_switch` - Interactive command key for reasoning effort selection (default: `!r`)
+- `thinking` - Default thinking state sent as `chat_template_kwargs.enable_thinking` in chat-completions requests (default: empty, which omits the parameter and preserves the provider default). Values: `on`, `off`. Qwen-style servers use this to disable reasoning entirely; it is unrelated to `show_thinking`, which only controls display
+- `thinking_switch` - Interactive command key for the thinking switch (default: `!think`)
 - `image_control` - Interactive command key for managing native images (default: `!i`)
 - `image_max_size_mb` - Maximum size per native image in MiB (default: 10)
 - `image_max_total_size_mb` - Maximum total native image bytes in MiB per session and per request (default: 40). Session storage counts disabled images too; requests count only images being sent
@@ -303,6 +305,19 @@ For a complete list of all configuration options and their defaults, see [intern
 - `env_name` names the environment variable holding the API key; keys are never read from the config file.
 - `headers` are sent with every chat request (streamed or not) and with model listing, overriding same-named headers Ch sets itself.
 - `models.url` must be https, except for the `ollama` platform, and only feeds the model picker; a platform without it still works when `-m` is given.
+- `thinking_transport` selects where the `-think` / `!think` switch is written into the request body. Gateways disagree on the field, and most ignore an unknown field silently, so the transport is declared instead of guessed:
+
+  | value | body fragment | gateways |
+  | --- | --- | --- |
+  | `chat_template_kwargs` (default) | `{"chat_template_kwargs":{"enable_thinking": bool}}` | vLLM, SGLang, Xinference (Qwen) |
+  | `dashscope` | `{"enable_thinking": bool}` | DashScope compatible mode |
+  | `anthropic` | `{"thinking":{"type":"enabled","budget_tokens":N}}` / `{"thinking":{"type":"disabled"}}` | Anthropic Messages |
+  | `ollama` | `{"think": bool}` | Ollama |
+  | `none` | nothing is sent | platforms without the switch |
+
+- `thinking_budget` sets `budget_tokens` for the `anthropic` transport (default 4096).
+- `reasoning_effort_transport` selects where `-r` / `!r` is written: `root` (default, `{"reasoning_effort":"..."}`), `openrouter` (`{"reasoning":{"effort":"..."}}`), or `none`.
+- Both transports are validated when the platform is initialized, so a typo fails immediately instead of silently sending nothing. They apply to user chat requests only; silent auxiliary requests (AI filenames, compression) never carry them.
 
 ### Local & Open-Source Setup
 
@@ -344,6 +359,11 @@ ch -r high "Explain recursion"
 ch --reasoning-effort low "Quick summary"
 ch -r default "Use the provider default effort"
 ch -r medium -p google -m models/gemini-3.7-flash "hello"
+
+# set thinking state for a single query (sent as chat_template_kwargs.enable_thinking)
+ch -think off "Answer without thinking"
+ch --thinking on -p dku -m qwen3.8-27b-local "Think it through"
+ch -think default "Use the provider default"
 
 # ask the model, then export code blocks from the response to files
 ch -e "Write a Python script to sort a list"
@@ -440,6 +460,7 @@ When in interactive mode (`ch`), use these commands:
 - **`!o`** - select from all models
 - **`!p`** - switch platforms
 - **`!r [effort]`** - set reasoning effort (or fzf pick if no argument). Use `default` to omit the parameter. Supported values are filtered per model using Models.dev metadata
+- **`!think [on|off]`** - set the thinking state (or fzf pick if no argument). Use `default` to omit the parameter. Sent as `chat_template_kwargs.enable_thinking`; persists in session files and per-turn history
 - **`!l [file/dir]`** - load files/dirs. A file path loads directly; a directory opens the file picker. Images are loaded as native attachments; with `!i off`, OCR text is also added when available
 - **`!i [on|off]`** - manage images. With no argument, use fzf to select images to toggle enabled/disabled (Tab selects multiple, Enter toggles selected entries). `off` pauses all image sending; `on` resumes sending individually enabled images
 - **`!a [filter]`** - search and load sessions (filters: 1d, 1w, 1m, 1y, exact, <epoch>, <range>). With `save_all_sessions=true`, new messages after `!a` are saved to a new forked session file instead of overwriting the loaded one.

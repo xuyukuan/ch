@@ -24,6 +24,12 @@ type Manager struct {
 	client          *openai.Client
 	config          *types.Config
 	reasoningEffort string // current reasoning effort for user-facing requests; "" = omit
+	thinking        string // current thinking state for user-facing requests; "" = omit
+
+	// Transports resolved from the active platform during Initialize.
+	thinkingTransport string
+	effortTransport   string
+	thinkingBudget    int
 }
 
 // NewManager creates a new platform manager
@@ -42,6 +48,40 @@ func (m *Manager) SetReasoningEffort(effort string) {
 // GetReasoningEffort returns the active reasoning effort.
 func (m *Manager) GetReasoningEffort() string {
 	return m.reasoningEffort
+}
+
+// requestParams collects the body parameters for one user-facing request.
+// Silent auxiliary requests never call it, so they are unaffected by the
+// chat-level effort and thinking state.
+func (m *Manager) requestParams(model string) map[string]any {
+	params := effortParams(m.effortTransport, m.resolveOutboundEffort(model))
+	thinking := thinkingParams(m.thinkingTransport, m.thinking, m.thinkingBudget)
+	if thinking == nil {
+		return params
+	}
+	if params == nil {
+		params = map[string]any{}
+	}
+	mergeInto(params, thinking)
+	return params
+}
+
+// ThinkingSupported reports whether the active platform has a transport for the
+// thinking switch. Platforms with thinking_transport none silently ignore it.
+func (m *Manager) ThinkingSupported() bool {
+	return m.thinkingTransport != ThinkingTransportNone
+}
+
+// SetThinking sets the active thinking state for subsequent user-facing chat
+// requests. An empty state omits chat_template_kwargs so the provider default
+// applies.
+func (m *Manager) SetThinking(thinking string) {
+	m.thinking = thinking
+}
+
+// GetThinking returns the active thinking state.
+func (m *Manager) GetThinking() string {
+	return m.thinking
 }
 
 // resolveOutboundEffort determines the reasoning_effort value to send in
@@ -69,12 +109,26 @@ func (m *Manager) resolveOutboundEffort(model string) string {
 
 // Initialize initializes the AI client for the current platform
 func (m *Manager) Initialize() error {
+	platformConfig := m.config.Platforms[m.config.CurrentPlatform]
+
+	thinkingTransport, err := resolveThinkingTransport(platformConfig)
+	if err != nil {
+		return err
+	}
+	effortTransport, err := resolveEffortTransport(platformConfig)
+	if err != nil {
+		return err
+	}
+	m.thinkingTransport = thinkingTransport
+	m.effortTransport = effortTransport
+	m.thinkingBudget = platformConfig.ThinkingBudget
+
 	if m.config.CurrentPlatform == "openai" {
 		apiKey := os.Getenv("OPENAI_API_KEY")
 		if apiKey == "" {
 			return fmt.Errorf("OPENAI_API_KEY environment variable is required for OpenAI platform")
 		}
-		m.client = openai.NewClient(apiKey)
+		m.client = openai.NewClientWithConfig(withParamsTransport(openai.DefaultConfig(apiKey)))
 		m.config.CurrentBaseURL = ""
 		return nil
 	}
@@ -105,6 +159,7 @@ func (m *Manager) Initialize() error {
 	m.config.CurrentBaseURL = baseURL
 	clientConfig.BaseURL = baseURL
 	clientConfig = withPlatformHeaders(clientConfig, platform.Headers)
+	clientConfig = withParamsTransport(clientConfig)
 	m.client = openai.NewClientWithConfig(clientConfig)
 
 	return nil
@@ -126,10 +181,16 @@ func (m *Manager) SendSilentChatRequest(messages []types.ChatMessage, model stri
 		})
 	}
 
-	// Temporarily clear reasoning effort so the silent request omits it.
+	// Temporarily clear reasoning effort and thinking so the silent request
+	// omits both.
 	savedEffort := m.reasoningEffort
 	m.reasoningEffort = ""
-	defer func() { m.reasoningEffort = savedEffort }()
+	savedThinking := m.thinking
+	m.thinking = ""
+	defer func() {
+		m.reasoningEffort = savedEffort
+		m.thinking = savedThinking
+	}()
 
 	return m.sendNonStreamingRequest(openaiMessages, model, streamingCancel, isStreaming)
 }
@@ -630,11 +691,8 @@ func (m *Manager) sendNonStreamingRequest(openaiMessages []openai.ChatCompletion
 		Messages: openaiMessages,
 		Stream:   false,
 	}
-	if effort := m.resolveOutboundEffort(model); effort != "" {
-		req.ReasoningEffort = effort
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = withRequestParams(ctx, m.requestParams(model))
 	*isStreaming = true
 	*streamingCancel = cancel
 	defer func() {
@@ -666,11 +724,8 @@ func (m *Manager) sendStreamingRequest(openaiMessages []openai.ChatCompletionMes
 		Messages: openaiMessages,
 		Stream:   true,
 	}
-	if effort := m.resolveOutboundEffort(model); effort != "" {
-		req.ReasoningEffort = effort
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = withRequestParams(ctx, m.requestParams(model))
 	*isStreaming = true
 	*streamingCancel = cancel
 	defer func() {
